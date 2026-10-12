@@ -22,21 +22,97 @@ class DockerSourceAdapter(BaseSourceAdapter):
         self,
         base_url: Optional[str] = None,
         tls_config: Optional[Any] = None,
+        ssh_key: Optional[str] = None,
+        ssh_password: Optional[str] = None,
+        tls_ca_cert: Optional[str] = None,
+        tls_client_cert: Optional[str] = None,
+        tls_client_key: Optional[str] = None,
+        tls_verify: bool = True,
     ):
         self.base_url = base_url
         self.tls_config = tls_config
+        self.ssh_key = ssh_key
+        self.ssh_password = ssh_password
+        self.tls_ca_cert = tls_ca_cert
+        self.tls_client_cert = tls_client_cert
+        self.tls_client_key = tls_client_key
+        self.tls_verify = tls_verify
         self._client: Optional[docker.DockerClient] = None
+        self._temp_files: list[str] = []
 
     def _get_client(self) -> docker.DockerClient:
-        if self._client is None:
-            if self.base_url:
-                self._client = docker.DockerClient(
-                    base_url=self.base_url,
-                    tls=self.tls_config,
-                    timeout=30,
-                )
-            else:
-                self._client = docker.from_env(timeout=30)
+        if self._client is not None:
+            return self._client
+
+        import tempfile
+
+        # 1. Setup TLS config if certs provided
+        tls = self.tls_config
+        if not tls and (self.tls_client_cert or self.tls_ca_cert):
+            ca_path = None
+            cert_pair = None
+
+            if self.tls_ca_cert:
+                f_ca = tempfile.NamedTemporaryFile(delete=False, mode="w", suffix=".ca.crt")
+                f_ca.write(self.tls_ca_cert)
+                f_ca.close()
+                ca_path = f_ca.name
+                self._temp_files.append(ca_path)
+
+            if self.tls_client_cert and self.tls_client_key:
+                f_cert = tempfile.NamedTemporaryFile(delete=False, mode="w", suffix=".client.crt")
+                f_cert.write(self.tls_client_cert)
+                f_cert.close()
+                f_key = tempfile.NamedTemporaryFile(delete=False, mode="w", suffix=".client.key")
+                f_key.write(self.tls_client_key)
+                f_key.close()
+                os.chmod(f_key.name, 0o600)
+                cert_pair = (f_cert.name, f_key.name)
+                self._temp_files.extend([f_cert.name, f_key.name])
+
+            tls = docker.tls.TLSConfig(
+                client_cert=cert_pair,
+                ca_cert=ca_path,
+                verify=self.tls_verify if ca_path else False,
+            )
+
+        # 2. Setup SSH configuration if SSH base_url
+        if self.base_url and self.base_url.startswith("ssh://"):
+            import paramiko
+            from docker.transport import sshconn
+
+            key_path = None
+            if self.ssh_key:
+                f_k = tempfile.NamedTemporaryFile(delete=False, mode="w", suffix=".ssh.key")
+                f_k.write(self.ssh_key)
+                f_k.close()
+                os.chmod(f_k.name, 0o600)
+                key_path = f_k.name
+                self._temp_files.append(key_path)
+
+            orig_create = sshconn.SSHHTTPAdapter._create_paramiko_client
+            key_for_patch = key_path
+            pw_for_patch = self.ssh_password
+
+            def patched_create(adapter_self, target_url):
+                orig_create(adapter_self, target_url)
+                adapter_self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                if key_for_patch:
+                    adapter_self.ssh_params["key_filename"] = key_for_patch
+                if pw_for_patch:
+                    adapter_self.ssh_params["password"] = pw_for_patch
+
+            sshconn.SSHHTTPAdapter._create_paramiko_client = patched_create
+
+        if self.base_url:
+            self._client = docker.DockerClient(
+                base_url=self.base_url,
+                tls=tls,
+                timeout=30,
+            )
+        else:
+            self._client = docker.from_env(timeout=30)
+
         return self._client
 
     async def test_connection(self) -> Dict[str, Any]:

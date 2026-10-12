@@ -25,15 +25,36 @@ class KubernetesDestinationAdapter(BaseDestinationAdapter):
         kubeconfig_dict: Optional[Dict[str, Any]] = None,
         context: Optional[str] = None,
         in_cluster: bool = False,
+        api_server_url: Optional[str] = None,
+        bearer_token: Optional[str] = None,
+        ca_cert: Optional[str] = None,
+        insecure_skip_tls: bool = False,
     ):
         self.kubeconfig_dict = kubeconfig_dict
         self.context = context
         self.in_cluster = in_cluster
+        self.api_server_url = api_server_url
+        self.bearer_token = bearer_token
+        self.ca_cert = ca_cert
+        self.insecure_skip_tls = insecure_skip_tls
         self._api_client: Optional[client.ApiClient] = None
 
     def _get_api_client(self) -> client.ApiClient:
         if self._api_client is None:
-            if self.in_cluster:
+            if self.api_server_url and self.bearer_token:
+                configuration = client.Configuration()
+                configuration.host = self.api_server_url
+                configuration.api_key = {"authorization": f"Bearer {self.bearer_token}"}
+                if self.insecure_skip_tls:
+                    configuration.verify_ssl = False
+                elif self.ca_cert:
+                    import tempfile
+                    ca_file = tempfile.NamedTemporaryFile(delete=False, mode="w", suffix=".crt")
+                    ca_file.write(self.ca_cert)
+                    ca_file.close()
+                    configuration.ssl_ca_cert = ca_file.name
+                self._api_client = client.ApiClient(configuration)
+            elif self.in_cluster:
                 config.load_incluster_config()
                 self._api_client = client.ApiClient()
             elif self.kubeconfig_dict:

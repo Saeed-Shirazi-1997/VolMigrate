@@ -38,5 +38,41 @@ class TestAPI(unittest.TestCase):
                 r_del = await client.delete(f"/api/connections/{conn_id}")
                 self.assertEqual(r_del.status_code, 204)
 
+                # Create Remote Docker connection via SSH
+                r_docker_ssh = await client.post("/api/connections", json={
+                    "name": "Production Remote Docker",
+                    "type": "docker",
+                    "endpoint": "ssh://root@192.168.1.100:22",
+                    "config_payload": {
+                        "docker_mode": "ssh",
+                        "ssh_host": "192.168.1.100",
+                        "ssh_port": 22,
+                        "ssh_user": "root",
+                        "ssh_key": "-----BEGIN OPENSSH PRIVATE KEY-----\nfake\n-----END OPENSSH PRIVATE KEY-----"
+                    }
+                })
+                self.assertEqual(r_docker_ssh.status_code, 201)
+                ssh_id = r_docker_ssh.json()["id"]
+                # Verify secret is NOT returned in response
+                self.assertNotIn("ssh_key", r_docker_ssh.json())
+
+                # Create Remote Kubernetes connection via Kubeconfig
+                r_k8s_remote = await client.post("/api/connections", json={
+                    "name": "Production K8s Cluster",
+                    "type": "kubernetes",
+                    "config_payload": {
+                        "k8s_mode": "kubeconfig",
+                        "kubeconfig_raw": "apiVersion: v1\nclusters: []\ncontexts: []\ncurrent-context: test"
+                    }
+                })
+                self.assertEqual(r_k8s_remote.status_code, 201)
+                k8s_id = r_k8s_remote.json()["id"]
+                self.assertNotIn("kubeconfig_raw", r_k8s_remote.json())
+
+                # Clean up
+                await client.delete(f"/api/connections/{ssh_id}")
+                await client.delete(f"/api/connections/{k8s_id}")
+
         asyncio.run(_run())
+
 

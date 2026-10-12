@@ -302,93 +302,206 @@
           <div id="detail-events-container" class="bg-slate-950 border border-slate-800 rounded-xl p-4 font-mono text-xs text-slate-300 h-64 overflow-y-auto space-y-2">
             <div class="text-slate-500">Connecting to live SSE stream...</div>
           </div>
-    <!-- ADD CONNECTION MODAL -->
+    <!-- ADD CONNECTION MODAL (REMOTE & LOCAL) -->
     <div id="modal-add-connection" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 sm:p-8 space-y-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl p-6 sm:p-8 space-y-6 shadow-2xl relative max-h-[92vh] overflow-y-auto">
         <div class="flex items-center justify-between border-b border-slate-800 pb-4">
           <div>
             <h3 class="text-lg font-bold text-white flex items-center gap-2">
-              <i data-lucide="network" class="w-5 h-5 text-cyan-400"></i>Add New Connection
+              <span class="w-6 h-6 rounded-lg bg-cyan-950 text-cyan-400 border border-cyan-800 flex items-center justify-center text-xs">⚡</span>
+              Add Connection (Remote / Local)
             </h3>
-            <p class="text-xs text-slate-400 mt-1">Configure Docker Engine socket or Kubernetes cluster credentials</p>
+            <p class="text-xs text-slate-400 mt-1">Connect to a Remote Docker Engine (SSH/TLS) and Remote Kubernetes Cluster (Kubeconfig/Token)</p>
           </div>
           <button type="button" onclick="closeAddConnectionModal()" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition">
-            <i data-lucide="x" class="w-5 h-5"></i>
+            ✕
           </button>
         </div>
 
-        <!-- Quick Presets -->
+        <!-- Quick Remote Presets -->
         <div>
-          <label class="block text-xs font-semibold uppercase text-slate-400 mb-2">Quick Presets</label>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            <button type="button" onclick="applyPreset('local-docker')" class="px-3.5 py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800/80 border border-slate-800 hover:border-cyan-500/50 text-left transition text-xs flex items-center gap-2.5 group">
-              <span class="w-7 h-7 rounded-lg bg-sky-950 text-sky-400 border border-sky-800 flex items-center justify-center font-bold text-xs shrink-0">D</span>
-              <div class="min-w-0">
-                <div class="font-semibold text-white group-hover:text-cyan-400">Local Docker Engine</div>
-                <div class="text-[10px] text-slate-400 font-mono truncate">unix:///var/run/docker.sock</div>
-              </div>
+          <label class="block text-xs font-semibold uppercase text-slate-400 mb-2">Connection Templates</label>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <button type="button" onclick="applyRemotePreset('remote-docker-ssh')" class="p-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500/50 text-left transition text-xs flex flex-col gap-1 group">
+              <span class="text-cyan-400 font-semibold flex items-center gap-1">🌐 Docker SSH</span>
+              <span class="text-[10px] text-slate-400">Remote host via SSH</span>
             </button>
-            <button type="button" onclick="applyPreset('local-k8s')" class="px-3.5 py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800/80 border border-slate-800 hover:border-cyan-500/50 text-left transition text-xs flex items-center gap-2.5 group">
-              <span class="w-7 h-7 rounded-lg bg-indigo-950 text-indigo-400 border border-indigo-800 flex items-center justify-center font-bold text-xs shrink-0">K8s</span>
-              <div class="min-w-0">
-                <div class="font-semibold text-white group-hover:text-cyan-400">Current K8s Cluster</div>
-                <div class="text-[10px] text-slate-400 font-mono truncate">~/.kube/config / In-Cluster</div>
-              </div>
+            <button type="button" onclick="applyRemotePreset('remote-docker-tls')" class="p-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500/50 text-left transition text-xs flex flex-col gap-1 group">
+              <span class="text-cyan-400 font-semibold flex items-center gap-1">🔒 Docker TLS</span>
+              <span class="text-[10px] text-slate-400">tcp://host:2376 certs</span>
+            </button>
+            <button type="button" onclick="applyRemotePreset('remote-k8s-kubeconfig')" class="p-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500/50 text-left transition text-xs flex flex-col gap-1 group">
+              <span class="text-indigo-400 font-semibold flex items-center gap-1">☸️ K8s Config</span>
+              <span class="text-[10px] text-slate-400">Upload Kubeconfig</span>
+            </button>
+            <button type="button" onclick="applyRemotePreset('remote-k8s-token')" class="p-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500/50 text-left transition text-xs flex flex-col gap-1 group">
+              <span class="text-indigo-400 font-semibold flex items-center gap-1">🔑 K8s Token</span>
+              <span class="text-[10px] text-slate-400">API URL + Bearer</span>
             </button>
           </div>
         </div>
 
         <!-- Form -->
         <form id="form-add-connection" onsubmit="handleAddConnectionSubmit(event)" class="space-y-4">
-          <div>
-            <label class="block text-xs font-semibold uppercase text-slate-400 mb-1.5">Connection Name</label>
-            <input type="text" id="conn-name" required placeholder="e.g. Local Docker Engine or Staging K8s" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-cyan-500" />
-          </div>
-
-          <div>
-            <label class="block text-xs font-semibold uppercase text-slate-400 mb-1.5">Connection Type</label>
-            <select id="conn-type" required onchange="onConnTypeChange()" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-cyan-500">
-              <option value="docker">Docker Engine (Source)</option>
-              <option value="kubernetes">Kubernetes Cluster (Destination)</option>
-            </select>
-          </div>
-
-          <!-- Docker Fields -->
-          <div id="fields-docker" class="space-y-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label class="block text-xs font-semibold uppercase text-slate-400 mb-1.5">Docker Daemon Endpoint / Socket</label>
-              <input type="text" id="conn-docker-endpoint" value="unix:///var/run/docker.sock" placeholder="unix:///var/run/docker.sock or tcp://host:2375" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white font-mono focus:outline-none focus:border-cyan-500" />
-              <p class="text-[11px] text-slate-500 mt-1">Leave as <code>unix:///var/run/docker.sock</code> for local Docker Engine</p>
+              <label class="block text-xs font-semibold uppercase text-slate-400 mb-1.5">Connection Name</label>
+              <input type="text" id="conn-name" required placeholder="e.g. Production Remote Docker" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-cyan-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold uppercase text-slate-400 mb-1.5">Connection Target</label>
+              <select id="conn-type" required onchange="onConnTypeChange()" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-cyan-500">
+                <option value="docker">Docker Engine (Source)</option>
+                <option value="kubernetes">Kubernetes Cluster (Destination)</option>
+              </select>
             </div>
           </div>
 
-          <!-- Kubernetes Fields -->
-          <div id="fields-k8s" class="space-y-4 hidden">
+          <!-- DOCKER CONFIGURATION -->
+          <div id="fields-docker" class="space-y-4 border-t border-slate-800/80 pt-4">
             <div>
-              <label class="block text-xs font-semibold uppercase text-slate-400 mb-1.5">Cluster Access Method</label>
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                <label class="flex items-center gap-2 p-2.5 rounded-lg bg-slate-950 border border-slate-800 cursor-pointer hover:border-cyan-500/50">
-                  <input type="radio" name="k8s-mode" id="k8s-mode-default" value="default" checked onchange="onK8sModeChange()" class="text-cyan-500" />
-                  <span>Default Host / In-Cluster</span>
-                </label>
-                <label class="flex items-center gap-2 p-2.5 rounded-lg bg-slate-950 border border-slate-800 cursor-pointer hover:border-cyan-500/50">
-                  <input type="radio" name="k8s-mode" id="k8s-mode-custom" value="custom" onchange="onK8sModeChange()" class="text-cyan-500" />
-                  <span>Custom Kubeconfig YAML</span>
-                </label>
+              <label class="block text-xs font-semibold uppercase text-slate-400 mb-1.5">Docker Access Protocol</label>
+              <select id="docker-protocol" onchange="onDockerProtocolChange()" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-cyan-500">
+                <option value="ssh">Remote SSH (ssh://user@host) — Recommended</option>
+                <option value="tcp_tls">Remote TCP with TLS (tcp://host:2376)</option>
+                <option value="tcp_plain">Remote TCP Plain (tcp://host:2375 — VPN/Internal)</option>
+                <option value="local">Local Socket (unix:///var/run/docker.sock)</option>
+              </select>
+            </div>
+
+            <!-- Docker SSH Subfields -->
+            <div id="docker-ssh-fields" class="space-y-3">
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div class="sm:col-span-2">
+                  <label class="block text-[11px] font-semibold uppercase text-slate-400 mb-1">Remote Host / IP</label>
+                  <input type="text" id="docker-ssh-host" placeholder="e.g. 192.168.1.100 or server.company.com" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-cyan-500" />
+                </div>
+                <div>
+                  <label class="block text-[11px] font-semibold uppercase text-slate-400 mb-1">SSH Port</label>
+                  <input type="number" id="docker-ssh-port" value="22" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-cyan-500" />
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-[11px] font-semibold uppercase text-slate-400 mb-1">SSH Username</label>
+                <input type="text" id="docker-ssh-user" value="root" placeholder="root or ubuntu" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-cyan-500" />
+              </div>
+
+              <div>
+                <div class="flex justify-between items-center mb-1">
+                  <label class="block text-[11px] font-semibold uppercase text-slate-400">SSH Private Key (PEM format)</label>
+                  <label class="text-[11px] text-cyan-400 hover:underline cursor-pointer">
+                    Upload key file
+                    <input type="file" onchange="handleFileUpload(event, 'docker-ssh-key')" class="hidden" />
+                  </label>
+                </div>
+                <textarea id="docker-ssh-key" rows="3" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;...&#10;-----END OPENSSH PRIVATE KEY-----" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs font-mono text-white focus:outline-none focus:border-cyan-500"></textarea>
+              </div>
+
+              <div>
+                <label class="block text-[11px] font-semibold uppercase text-slate-400 mb-1">Or SSH Password (if not using key)</label>
+                <input type="password" id="docker-ssh-password" placeholder="Optional SSH password" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-cyan-500" />
               </div>
             </div>
 
-            <div id="field-k8s-custom-yaml" class="hidden">
-              <label class="block text-xs font-semibold uppercase text-slate-400 mb-1.5">Kubeconfig YAML</label>
-              <textarea id="conn-k8s-yaml" rows="4" placeholder="apiVersion: v1&#10;clusters: ...&#10;users: ..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-xs font-mono text-white focus:outline-none focus:border-cyan-500"></textarea>
-              <p class="text-[11px] text-slate-500 mt-1">Sensitive tokens and certificates are encrypted at rest.</p>
+            <!-- Docker TCP TLS Subfields -->
+            <div id="docker-tls-fields" class="space-y-3 hidden">
+              <div>
+                <label class="block text-[11px] font-semibold uppercase text-slate-400 mb-1">Docker Endpoint URL</label>
+                <input type="text" id="docker-tls-endpoint" placeholder="tcp://192.168.1.100:2376" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-cyan-500" />
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold uppercase text-slate-400 mb-1">CA Certificate (ca.pem)</label>
+                <textarea id="docker-tls-ca" rows="2" placeholder="-----BEGIN CERTIFICATE-----&#10;..." class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs font-mono text-white focus:outline-none focus:border-cyan-500"></textarea>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-[11px] font-semibold uppercase text-slate-400 mb-1">Client Cert (cert.pem)</label>
+                  <textarea id="docker-tls-cert" rows="2" placeholder="-----BEGIN CERTIFICATE-----&#10;..." class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs font-mono text-white focus:outline-none focus:border-cyan-500"></textarea>
+                </div>
+                <div>
+                  <label class="block text-[11px] font-semibold uppercase text-slate-400 mb-1">Client Key (key.pem)</label>
+                  <textarea id="docker-tls-key" rows="2" placeholder="-----BEGIN RSA PRIVATE KEY-----&#10;..." class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs font-mono text-white focus:outline-none focus:border-cyan-500"></textarea>
+                </div>
+              </div>
+            </div>
+
+            <!-- Docker TCP Plain Subfields -->
+            <div id="docker-plain-fields" class="space-y-3 hidden">
+              <div>
+                <label class="block text-[11px] font-semibold uppercase text-slate-400 mb-1">TCP Endpoint (Plain)</label>
+                <input type="text" id="docker-plain-endpoint" placeholder="tcp://10.0.0.5:2375" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-cyan-500" />
+              </div>
+            </div>
+
+            <!-- Docker Local Socket Subfields -->
+            <div id="docker-local-fields" class="space-y-3 hidden">
+              <div>
+                <label class="block text-[11px] font-semibold uppercase text-slate-400 mb-1">Local Docker Socket</label>
+                <input type="text" id="docker-local-endpoint" value="unix:///var/run/docker.sock" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-cyan-500" />
+              </div>
+            </div>
+          </div>
+
+          <!-- KUBERNETES CONFIGURATION -->
+          <div id="fields-k8s" class="space-y-4 border-t border-slate-800/80 pt-4 hidden">
+            <div>
+              <label class="block text-xs font-semibold uppercase text-slate-400 mb-1.5">Kubernetes Access Method</label>
+              <select id="k8s-protocol" onchange="onK8sProtocolChange()" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-cyan-500">
+                <option value="kubeconfig">Remote Kubeconfig (File / YAML) — Recommended</option>
+                <option value="api_token">Direct API Server URL + Bearer Token</option>
+                <option value="default">Default Host Kubeconfig (~/.kube/config / In-Cluster)</option>
+              </select>
+            </div>
+
+            <!-- K8s Kubeconfig Subfields -->
+            <div id="k8s-kubeconfig-fields" class="space-y-3">
+              <div class="flex justify-between items-center">
+                <label class="block text-[11px] font-semibold uppercase text-slate-400">Kubeconfig YAML</label>
+                <label class="text-[11px] text-cyan-400 hover:underline cursor-pointer">
+                  Upload .kube/config file
+                  <input type="file" onchange="handleFileUpload(event, 'k8s-kubeconfig-yaml')" class="hidden" />
+                </label>
+              </div>
+              <textarea id="k8s-kubeconfig-yaml" rows="5" placeholder="apiVersion: v1&#10;clusters:&#10;- cluster:&#10;    server: https://remote-k8s.example.com:6443&#10;..." class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs font-mono text-white focus:outline-none focus:border-cyan-500"></textarea>
+              <div>
+                <label class="block text-[11px] font-semibold uppercase text-slate-400 mb-1">Context Name (Optional)</label>
+                <input type="text" id="k8s-kubeconfig-context" placeholder="Leave empty for current-context" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-cyan-500" />
+              </div>
+            </div>
+
+            <!-- K8s Direct API Token Subfields -->
+            <div id="k8s-token-fields" class="space-y-3 hidden">
+              <div>
+                <label class="block text-[11px] font-semibold uppercase text-slate-400 mb-1">API Server URL</label>
+                <input type="text" id="k8s-token-endpoint" placeholder="https://k8s-master.example.com:6443" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-cyan-500" />
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold uppercase text-slate-400 mb-1">ServiceAccount Bearer Token</label>
+                <textarea id="k8s-token-bearer" rows="2" placeholder="eyJhbGciOiJSUzI1NiIs..." class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs font-mono text-white focus:outline-none focus:border-cyan-500"></textarea>
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold uppercase text-slate-400 mb-1">CA Certificate (Optional)</label>
+                <textarea id="k8s-token-ca" rows="2" placeholder="-----BEGIN CERTIFICATE-----&#10;..." class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs font-mono text-white focus:outline-none focus:border-cyan-500"></textarea>
+              </div>
+              <div class="flex items-center gap-2 pt-1">
+                <input type="checkbox" id="k8s-token-insecure" class="rounded border-slate-700 text-cyan-500" />
+                <label for="k8s-token-insecure" class="text-xs text-slate-300">Skip TLS Certificate Verification (Insecure)</label>
+              </div>
+            </div>
+
+            <!-- K8s Default Subfields -->
+            <div id="k8s-default-fields" class="space-y-3 hidden">
+              <p class="text-xs text-slate-400 bg-slate-950 p-3 rounded-lg border border-slate-800">
+                Uses the default Kubernetes cluster context from the host's <code>~/.kube/config</code> or the in-cluster ServiceAccount if running inside Kubernetes.
+              </p>
             </div>
           </div>
 
           <div class="pt-4 border-t border-slate-800 flex justify-end gap-3">
             <button type="button" onclick="closeAddConnectionModal()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm font-medium text-slate-300 transition">Cancel</button>
-            <button type="submit" id="btn-submit-conn" class="px-5 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-medium text-sm shadow-lg shadow-cyan-600/20 transition flex items-center gap-2">
-              <i data-lucide="check" class="w-4 h-4"></i>Save & Test Connection
+            <button type="submit" id="btn-submit-conn" class="px-5 py-2 rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-medium text-sm shadow-lg shadow-cyan-600/20 transition flex items-center gap-2">
+              Save & Test Connection
             </button>
           </div>
         </form>
@@ -403,6 +516,17 @@
     let currentDetailId = null;
     let sseSource = null;
     let connectionsCache = [];
+
+    // Safe icon creation that never throws if CDN fails
+    function safeCreateIcons() {
+      if (typeof lucide !== 'undefined' && lucide && typeof lucide.createIcons === 'function') {
+        try {
+          lucide.createIcons();
+        } catch (e) {
+          console.warn('Lucide icon error:', e);
+        }
+      }
+    }
 
     function switchTab(tab) {
       activeTab = tab;
@@ -426,7 +550,7 @@
       if (tab === 'explorer') loadExplorer();
       if (tab === 'wizard') loadWizard();
 
-      lucide.createIcons();
+      safeCreateIcons();
     }
 
     function formatBytes(bytes) {
@@ -501,17 +625,31 @@
       }
     }
 
-    // Modal controls & Connection Management
+
+    // File Upload Helper
+    function handleFileUpload(event, targetElementId) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const el = document.getElementById(targetElementId);
+        if (el) el.value = e.target.result;
+      };
+      reader.readAsText(file);
+    }
+
+    // Modal controls
     function openAddConnectionModal() {
       const modal = document.getElementById('modal-add-connection');
       if (modal) {
         modal.classList.remove('hidden');
         document.getElementById('form-add-connection').reset();
-        document.getElementById('conn-docker-endpoint').value = 'unix:///var/run/docker.sock';
-        document.getElementById('k8s-mode-default').checked = true;
+        document.getElementById('docker-protocol').value = 'ssh';
+        document.getElementById('k8s-protocol').value = 'kubeconfig';
         onConnTypeChange();
-        onK8sModeChange();
-        lucide.createIcons();
+        onDockerProtocolChange();
+        onK8sProtocolChange();
+        safeCreateIcons();
       }
     }
 
@@ -520,18 +658,36 @@
       if (modal) modal.classList.add('hidden');
     }
 
-    function applyPreset(preset) {
-      if (preset === 'local-docker') {
-        document.getElementById('conn-name').value = 'Local Docker Engine';
+    function applyRemotePreset(preset) {
+      if (preset === 'remote-docker-ssh') {
+        document.getElementById('conn-name').value = 'Remote Docker (SSH)';
         document.getElementById('conn-type').value = 'docker';
-        document.getElementById('conn-docker-endpoint').value = 'unix:///var/run/docker.sock';
+        document.getElementById('docker-protocol').value = 'ssh';
+        document.getElementById('docker-ssh-host').value = '192.168.1.100';
+        document.getElementById('docker-ssh-port').value = '22';
+        document.getElementById('docker-ssh-user').value = 'root';
         onConnTypeChange();
-      } else if (preset === 'local-k8s') {
-        document.getElementById('conn-name').value = 'Local Kubernetes Cluster';
+        onDockerProtocolChange();
+      } else if (preset === 'remote-docker-tls') {
+        document.getElementById('conn-name').value = 'Remote Docker (TLS)';
+        document.getElementById('conn-type').value = 'docker';
+        document.getElementById('docker-protocol').value = 'tcp_tls';
+        document.getElementById('docker-tls-endpoint').value = 'tcp://192.168.1.100:2376';
+        onConnTypeChange();
+        onDockerProtocolChange();
+      } else if (preset === 'remote-k8s-kubeconfig') {
+        document.getElementById('conn-name').value = 'Remote K8s Cluster';
         document.getElementById('conn-type').value = 'kubernetes';
-        document.getElementById('k8s-mode-default').checked = true;
+        document.getElementById('k8s-protocol').value = 'kubeconfig';
         onConnTypeChange();
-        onK8sModeChange();
+        onK8sProtocolChange();
+      } else if (preset === 'remote-k8s-token') {
+        document.getElementById('conn-name').value = 'Remote K8s (Token)';
+        document.getElementById('conn-type').value = 'kubernetes';
+        document.getElementById('k8s-protocol').value = 'api_token';
+        document.getElementById('k8s-token-endpoint').value = 'https://k8s-master.example.com:6443';
+        onConnTypeChange();
+        onK8sProtocolChange();
       }
     }
 
@@ -549,14 +705,19 @@
       }
     }
 
-    function onK8sModeChange() {
-      const isCustom = document.getElementById('k8s-mode-custom').checked;
-      const customField = document.getElementById('field-k8s-custom-yaml');
-      if (isCustom) {
-        customField.classList.remove('hidden');
-      } else {
-        customField.classList.add('hidden');
-      }
+    function onDockerProtocolChange() {
+      const proto = document.getElementById('docker-protocol').value;
+      document.getElementById('docker-ssh-fields').classList.toggle('hidden', proto !== 'ssh');
+      document.getElementById('docker-tls-fields').classList.toggle('hidden', proto !== 'tcp_tls');
+      document.getElementById('docker-plain-fields').classList.toggle('hidden', proto !== 'tcp_plain');
+      document.getElementById('docker-local-fields').classList.toggle('hidden', proto !== 'local');
+    }
+
+    function onK8sProtocolChange() {
+      const proto = document.getElementById('k8s-protocol').value;
+      document.getElementById('k8s-kubeconfig-fields').classList.toggle('hidden', proto !== 'kubeconfig');
+      document.getElementById('k8s-token-fields').classList.toggle('hidden', proto !== 'api_token');
+      document.getElementById('k8s-default-fields').classList.toggle('hidden', proto !== 'default');
     }
 
     async function handleAddConnectionSubmit(e) {
@@ -564,20 +725,84 @@
       const name = document.getElementById('conn-name').value.trim();
       const type = document.getElementById('conn-type').value;
       const btn = document.getElementById('btn-submit-conn');
-      btn.innerText = 'Saving...';
+      btn.innerText = 'Saving & Verifying...';
 
       let endpoint = null;
-      let configPayload = null;
+      let configPayload = {};
 
       if (type === 'docker') {
-        endpoint = document.getElementById('conn-docker-endpoint').value.trim() || 'unix:///var/run/docker.sock';
-      } else if (type === 'kubernetes') {
-        const isCustom = document.getElementById('k8s-mode-custom').checked;
-        if (isCustom) {
-          const yaml = document.getElementById('conn-k8s-yaml').value.trim();
-          if (yaml) {
-            configPayload = { kubeconfig_raw: yaml };
+        const proto = document.getElementById('docker-protocol').value;
+        configPayload.docker_mode = proto;
+
+        if (proto === 'ssh') {
+          const host = document.getElementById('docker-ssh-host').value.trim();
+          const port = parseInt(document.getElementById('docker-ssh-port').value.trim() || '22');
+          const user = document.getElementById('docker-ssh-user').value.trim() || 'root';
+          const key = document.getElementById('docker-ssh-key').value.trim();
+          const pass = document.getElementById('docker-ssh-password').value;
+
+          if (!host) {
+            alert('Please specify the Remote SSH Host/IP');
+            btn.innerText = 'Save & Test Connection';
+            return;
           }
+
+          endpoint = `ssh://${user}@${host}:${port}`;
+          configPayload.ssh_host = host;
+          configPayload.ssh_port = port;
+          configPayload.ssh_user = user;
+          configPayload.ssh_key = key || null;
+          configPayload.ssh_password = pass || null;
+
+        } else if (proto === 'tcp_tls') {
+          endpoint = document.getElementById('docker-tls-endpoint').value.trim();
+          configPayload.tls_ca_cert = document.getElementById('docker-tls-ca').value.trim() || null;
+          configPayload.tls_client_cert = document.getElementById('docker-tls-cert').value.trim() || null;
+          configPayload.tls_client_key = document.getElementById('docker-tls-key').value.trim() || null;
+          configPayload.tls_verify = Boolean(configPayload.tls_ca_cert);
+
+        } else if (proto === 'tcp_plain') {
+          endpoint = document.getElementById('docker-plain-endpoint').value.trim();
+
+        } else if (proto === 'local') {
+          endpoint = document.getElementById('docker-local-endpoint').value.trim() || 'unix:///var/run/docker.sock';
+        }
+
+      } else if (type === 'kubernetes') {
+        const proto = document.getElementById('k8s-protocol').value;
+        configPayload.k8s_mode = proto;
+
+        if (proto === 'kubeconfig') {
+          const yaml = document.getElementById('k8s-kubeconfig-yaml').value.trim();
+          const ctx = document.getElementById('k8s-kubeconfig-context').value.trim();
+          if (!yaml) {
+            alert('Please paste or upload the Kubeconfig YAML');
+            btn.innerText = 'Save & Test Connection';
+            return;
+          }
+          configPayload.kubeconfig_raw = yaml;
+          configPayload.context = ctx || null;
+
+        } else if (proto === 'api_token') {
+          const apiUrl = document.getElementById('k8s-token-endpoint').value.trim();
+          const token = document.getElementById('k8s-token-bearer').value.trim();
+          const ca = document.getElementById('k8s-token-ca').value.trim();
+          const insecure = document.getElementById('k8s-token-insecure').checked;
+
+          if (!apiUrl || !token) {
+            alert('Please specify the API Server URL and Bearer Token');
+            btn.innerText = 'Save & Test Connection';
+            return;
+          }
+
+          endpoint = apiUrl;
+          configPayload.api_server_url = apiUrl;
+          configPayload.bearer_token = token;
+          configPayload.ca_cert = ca || null;
+          configPayload.insecure_skip_tls = insecure;
+
+        } else if (proto === 'default') {
+          configPayload.k8s_mode = 'default';
         }
       }
 
@@ -635,64 +860,73 @@
         if (connectionsCache.length === 0) {
           grid.innerHTML = `
             <div class="col-span-2 bg-slate-900 border border-dashed border-slate-800 rounded-2xl p-8 text-center space-y-4">
-              <div class="w-12 h-12 rounded-xl bg-slate-800 text-cyan-400 mx-auto flex items-center justify-center">
-                <i data-lucide="network" class="w-6 h-6"></i>
+              <div class="w-12 h-12 rounded-xl bg-slate-800 text-cyan-400 mx-auto flex items-center justify-center font-bold text-lg">
+                ⚡
               </div>
               <div>
                 <h3 class="text-base font-semibold text-white">No connections configured yet</h3>
-                <p class="text-xs text-slate-400 mt-1">Add your local Docker engine and Kubernetes cluster to begin migrating volumes.</p>
+                <p class="text-xs text-slate-400 mt-1">Connect your Remote Docker Host (via SSH/TLS) and Remote Kubernetes Cluster (via Kubeconfig/Token).</p>
               </div>
-              <div class="flex justify-center gap-3 pt-2">
-                <button onclick="applyPreset('local-docker'); openAddConnectionModal();" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-white transition flex items-center gap-2">
-                  <span class="w-5 h-5 rounded bg-sky-950 text-sky-400 flex items-center justify-center font-bold text-[10px]">D</span> Add Local Docker
+              <div class="flex flex-wrap justify-center gap-3 pt-2">
+                <button onclick="applyRemotePreset('remote-docker-ssh'); openAddConnectionModal();" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-white transition flex items-center gap-2">
+                  <span class="w-5 h-5 rounded bg-sky-950 text-sky-400 flex items-center justify-center font-bold text-[10px]">D</span> Add Remote Docker (SSH)
                 </button>
-                <button onclick="applyPreset('local-k8s'); openAddConnectionModal();" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-white transition flex items-center gap-2">
-                  <span class="w-5 h-5 rounded bg-indigo-950 text-indigo-400 flex items-center justify-center font-bold text-[10px]">K</span> Add Local Kubernetes
+                <button onclick="applyRemotePreset('remote-k8s-kubeconfig'); openAddConnectionModal();" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-white transition flex items-center gap-2">
+                  <span class="w-5 h-5 rounded bg-indigo-950 text-indigo-400 flex items-center justify-center font-bold text-[10px]">K</span> Add Remote K8s (Kubeconfig)
                 </button>
               </div>
             </div>
           `;
-          lucide.createIcons();
+          safeCreateIcons();
           return;
         }
 
-        grid.innerHTML = connectionsCache.map(c => `
-          <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4 shadow-sm hover:border-slate-700 transition">
-            <div class="flex items-start justify-between">
-              <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-lg ${c.type === 'docker' ? 'bg-sky-950 text-sky-400 border border-sky-800' : 'bg-indigo-950 text-indigo-400 border border-indigo-800'} flex items-center justify-center font-bold">
-                  ${c.type === 'docker' ? 'D' : 'K8s'}
+        grid.innerHTML = connectionsCache.map(c => {
+          const isDocker = c.type === 'docker';
+          const typeBadge = isDocker ? 'DOCKER SOURCE' : 'KUBERNETES DEST';
+          const badgeClass = isDocker ? 'bg-sky-950 text-sky-400 border-sky-800' : 'bg-indigo-950 text-indigo-400 border-indigo-800';
+
+          return `
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4 shadow-sm hover:border-slate-700 transition">
+              <div class="flex items-start justify-between">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-lg ${badgeClass} border flex items-center justify-center font-bold">
+                    ${isDocker ? 'D' : 'K8s'}
+                  </div>
+                  <div>
+                    <div class="flex items-center gap-2">
+                      <h3 class="font-semibold text-white">${c.name}</h3>
+                      <span class="text-[10px] px-1.5 py-0.5 rounded border ${badgeClass} font-mono">${typeBadge}</span>
+                    </div>
+                    <p class="text-xs text-slate-400 font-mono mt-0.5 truncate max-w-xs">${c.endpoint || '(Kubeconfig / In-Cluster)'}</p>
+                  </div>
                 </div>
                 <div>
-                  <h3 class="font-semibold text-white">${c.name}</h3>
-                  <p class="text-xs text-slate-400 font-mono">${c.endpoint || (c.type === 'docker' ? 'unix:///var/run/docker.sock' : 'Default In-Cluster / ~/.kube/config')}</p>
+                  <span class="px-2 py-0.5 rounded text-xs font-semibold ${c.status === 'active' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : (c.status === 'error' ? 'bg-rose-950 text-rose-400 border border-rose-800' : 'bg-slate-800 text-slate-400')}">${c.status.toUpperCase()}</span>
                 </div>
               </div>
-              <div>
-                <span class="px-2 py-0.5 rounded text-xs font-semibold ${c.status === 'active' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : (c.status === 'error' ? 'bg-rose-950 text-rose-400 border border-rose-800' : 'bg-slate-800 text-slate-400')}">${c.status.toUpperCase()}</span>
+
+              ${c.last_error ? `
+                <div class="text-[11px] bg-rose-950/40 border border-rose-900/50 text-rose-300 rounded-lg p-2.5 font-mono break-all">
+                  Error: ${c.last_error}
+                </div>
+              ` : ''}
+
+              <div class="flex justify-between items-center text-xs text-slate-400 border-t border-slate-800/80 pt-3">
+                <span>Last tested: ${c.last_tested_at ? new Date(c.last_tested_at).toLocaleTimeString() : 'Never'}</span>
+                <div class="flex items-center gap-2">
+                  <button onclick="testConnection('${c.id}')" id="btn-test-${c.id}" class="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium transition flex items-center gap-1.5">
+                    ⚡ Test
+                  </button>
+                  <button onclick="deleteConnection('${c.id}')" title="Delete connection" class="px-2.5 py-1 rounded bg-slate-950 hover:bg-rose-950/50 hover:text-rose-400 text-slate-500 font-medium transition">
+                    🗑
+                  </button>
+                </div>
               </div>
             </div>
-
-            ${c.last_error ? `
-              <div class="text-[11px] bg-rose-950/40 border border-rose-900/50 text-rose-300 rounded-lg p-2.5 font-mono break-all">
-                Error: ${c.last_error}
-              </div>
-            ` : ''}
-
-            <div class="flex justify-between items-center text-xs text-slate-400 border-t border-slate-800/80 pt-3">
-              <span>Last tested: ${c.last_tested_at ? new Date(c.last_tested_at).toLocaleTimeString() : 'Never'}</span>
-              <div class="flex items-center gap-2">
-                <button onclick="testConnection('${c.id}')" id="btn-test-${c.id}" class="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium transition flex items-center gap-1.5">
-                  <i data-lucide="zap" class="w-3.5 h-3.5 text-cyan-400"></i>Test
-                </button>
-                <button onclick="deleteConnection('${c.id}')" class="px-2.5 py-1 rounded bg-slate-950 hover:bg-rose-950/50 hover:text-rose-400 text-slate-500 font-medium transition">
-                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                </button>
-              </div>
-            </div>
-          </div>
-        `).join('');
-        lucide.createIcons();
+          `;
+        }).join('');
+        safeCreateIcons();
       } catch (e) {
         console.error(e);
       }
@@ -705,7 +939,7 @@
         const res = await fetch(`/api/connections/${id}/test`, { method: 'POST' });
         const data = await res.json();
         if (data.success) {
-          alert(`✓ Connection verified successfully!\n\nVersion: ${data.version_info}`);
+          alert(`✓ Connection verified successfully!\n\nVersion / Info: ${data.version_info}`);
         } else {
           alert(`✗ Connection test failed:\n\n${data.error}`);
         }
@@ -717,12 +951,26 @@
 
     // Load Explorer
     async function loadExplorer() {
-      const res = await fetch('/api/connections');
-      const conns = await res.json();
-      const dockerConns = conns.filter(c => c.type === 'docker');
-      const sel = document.getElementById('explorer-connection-select');
-      sel.innerHTML = dockerConns.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
-      if (dockerConns.length > 0) loadExplorerVolumes();
+      try {
+        const res = await fetch('/api/connections');
+        const conns = await res.json();
+        const dockerConns = Array.isArray(conns) ? conns.filter(c => c.type === 'docker') : [];
+        const sel = document.getElementById('explorer-connection-select');
+        if (dockerConns.length === 0) {
+          sel.innerHTML = '<option value="">No Docker connections added</option>';
+          document.getElementById('volumes-grid').innerHTML = `
+            <div class="col-span-3 bg-slate-900 border border-dashed border-slate-800 rounded-2xl p-8 text-center space-y-3">
+              <p class="text-sm text-slate-400">Please add a Remote Docker connection first to explore volumes.</p>
+              <button onclick="applyRemotePreset('remote-docker-ssh'); openAddConnectionModal();" class="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-xs font-medium text-white transition">Add Remote Docker Connection</button>
+            </div>
+          `;
+          return;
+        }
+        sel.innerHTML = dockerConns.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+        loadExplorerVolumes();
+      } catch (e) {
+        console.error('Error loading explorer:', e);
+      }
     }
 
     async function loadExplorerVolumes() {
@@ -734,8 +982,12 @@
       try {
         const res = await fetch(`/api/discovery/sources/${connId}/volumes`);
         const vols = await res.json();
+        if (!Array.isArray(vols)) {
+          grid.innerHTML = `<div class="text-rose-400 col-span-3 p-4 bg-rose-950/30 border border-rose-900/40 rounded-xl text-xs font-mono">Error discovering volumes: ${vols.detail || JSON.stringify(vols)}</div>`;
+          return;
+        }
         if (vols.length === 0) {
-          grid.innerHTML = '<div class="text-slate-500 col-span-3">No volumes found.</div>';
+          grid.innerHTML = '<div class="text-slate-500 col-span-3">No volumes found on this Docker host.</div>';
           return;
         }
 
@@ -769,43 +1021,85 @@
 
     // Wizard
     async function loadWizard() {
-      const res = await fetch('/api/connections');
-      const conns = await res.json();
-      const dockerConns = conns.filter(c => c.type === 'docker');
-      const k8sConns = conns.filter(c => c.type === 'kubernetes');
+      try {
+        const res = await fetch('/api/connections');
+        const conns = await res.json();
+        const dockerConns = Array.isArray(conns) ? conns.filter(c => c.type === 'docker') : [];
+        const k8sConns = Array.isArray(conns) ? conns.filter(c => c.type === 'kubernetes') : [];
 
-      const srcSel = document.getElementById('wz-source-conn');
-      srcSel.innerHTML = dockerConns.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+        const srcSel = document.getElementById('wz-source-conn');
+        if (dockerConns.length > 0) {
+          srcSel.innerHTML = dockerConns.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+          onWizardSourceConnChange();
+        } else {
+          srcSel.innerHTML = '<option value="">No Docker connections available</option>';
+        }
 
-      const dstSel = document.getElementById('wz-dest-conn');
-      dstSel.innerHTML = k8sConns.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
-
-      if (dockerConns.length > 0) onWizardSourceConnChange();
-      if (k8sConns.length > 0) onWizardDestConnChange();
+        const dstSel = document.getElementById('wz-dest-conn');
+        if (k8sConns.length > 0) {
+          dstSel.innerHTML = k8sConns.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+          onWizardDestConnChange();
+        } else {
+          dstSel.innerHTML = '<option value="">No Kubernetes connections available</option>';
+        }
+      } catch (e) {
+        console.error('Error loading wizard connections:', e);
+      }
     }
 
     async function onWizardSourceConnChange() {
       const connId = document.getElementById('wz-source-conn').value;
-      if (!connId) return;
-      const res = await fetch(`/api/discovery/sources/${connId}/volumes`);
-      const vols = await res.json();
       const sel = document.getElementById('wz-source-vol');
-      sel.innerHTML = '<option value="">Select volume...</option>' + vols.map(v => `<option value="${v.name}">${v.name} (${v.active_consumers_count} consumers)</option>`).join('');
+      if (!connId) {
+        sel.innerHTML = '<option value="">Select Docker connection first...</option>';
+        return;
+      }
+      try {
+        const res = await fetch(`/api/discovery/sources/${connId}/volumes`);
+        const vols = await res.json();
+        if (Array.isArray(vols)) {
+          sel.innerHTML = '<option value="">Select volume...</option>' + vols.map(v => `<option value="${v.name}">${v.name} (${v.active_consumers_count} consumers)</option>`).join('');
+        } else {
+          sel.innerHTML = `<option value="">Error: ${vols.detail || 'Failed to list volumes'}</option>`;
+        }
+      } catch (e) {
+        sel.innerHTML = `<option value="">Error loading volumes</option>`;
+      }
     }
 
     async function onWizardDestConnChange() {
       const connId = document.getElementById('wz-dest-conn').value;
-      if (!connId) return;
-
-      const nsRes = await fetch(`/api/discovery/destinations/${connId}/namespaces`);
-      const nss = await nsRes.json();
       const nsSel = document.getElementById('wz-dest-ns');
-      nsSel.innerHTML = nss.map(n => `<option value="${n.name}">${n.name}</option>`).join('');
-
-      const scRes = await fetch(`/api/discovery/destinations/${connId}/storage-classes`);
-      const scs = await scRes.json();
       const scSel = document.getElementById('wz-dest-sc');
-      scSel.innerHTML = '<option value="">(Default StorageClass)</option>' + scs.map(s => `<option value="${s.name}">${s.name} (${s.provisioner})</option>`).join('');
+      if (!connId) {
+        nsSel.innerHTML = '<option value="default">default</option>';
+        scSel.innerHTML = '<option value="">(Default StorageClass)</option>';
+        return;
+      }
+
+      try {
+        const nsRes = await fetch(`/api/discovery/destinations/${connId}/namespaces`);
+        const nss = await nsRes.json();
+        if (Array.isArray(nss) && nss.length > 0) {
+          nsSel.innerHTML = nss.map(n => `<option value="${n.name}">${n.name}</option>`).join('');
+        } else {
+          nsSel.innerHTML = '<option value="default">default</option>';
+        }
+      } catch (e) {
+        nsSel.innerHTML = '<option value="default">default</option>';
+      }
+
+      try {
+        const scRes = await fetch(`/api/discovery/destinations/${connId}/storage-classes`);
+        const scs = await scRes.json();
+        if (Array.isArray(scs) && scs.length > 0) {
+          scSel.innerHTML = '<option value="">(Default StorageClass)</option>' + scs.map(s => `<option value="${s.name}">${s.name} (${s.provisioner})</option>`).join('');
+        } else {
+          scSel.innerHTML = '<option value="">(Default StorageClass)</option>';
+        }
+      } catch (e) {
+        scSel.innerHTML = '<option value="">(Default StorageClass)</option>';
+      }
     }
 
     function onWizardVolSelect() {
@@ -972,7 +1266,7 @@
     // Initialize on load
     document.addEventListener('DOMContentLoaded', () => {
       loadMigrations();
-      lucide.createIcons();
+      safeCreateIcons();
     });
   </script>
 </body>

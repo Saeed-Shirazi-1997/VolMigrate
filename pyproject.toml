@@ -13,8 +13,10 @@ dependencies = [
     "fastapi>=0.143.0",
     "httpx>=0.28.1",
     "kubernetes>=37.0.1",
+    "paramiko>=5.0.0",
     "psycopg2-binary>=2.9.13",
     "pydantic-settings>=2.15.0",
+    "pyyaml>=6.0.3",
     "sqlalchemy>=2.0",
     "sse-starlette>=3.5.0",
     "tenacity>=9.2.1",
@@ -25,3 +27,8 @@ dependencies = [
 dev = [
     "pytest",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+

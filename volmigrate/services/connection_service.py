@@ -89,9 +89,32 @@ class ConnectionService:
                 logger.error("Failed to decrypt connection config: %s", e)
 
         if connection.type == ConnectionType.DOCKER:
+            endpoint = connection.endpoint
+            # If endpoint is not set directly, reconstruct from host/port/mode if provided
+            if not endpoint:
+                docker_mode = config_payload.get("docker_mode")
+                if docker_mode == "ssh":
+                    user = config_payload.get("ssh_user", "root")
+                    host = config_payload.get("ssh_host")
+                    port = config_payload.get("ssh_port", 22)
+                    if host:
+                        endpoint = f"ssh://{user}@{host}:{port}"
+                elif docker_mode in ("tcp_tls", "tcp_plain"):
+                    host = config_payload.get("tcp_host")
+                    default_port = 2376 if docker_mode == "tcp_tls" else 2375
+                    port = config_payload.get("tcp_port", default_port)
+                    if host:
+                        endpoint = f"tcp://{host}:{port}"
+
             return DockerSourceAdapter(
-                base_url=connection.endpoint,
+                base_url=endpoint,
                 tls_config=config_payload.get("tls"),
+                ssh_key=config_payload.get("ssh_key"),
+                ssh_password=config_payload.get("ssh_password"),
+                tls_ca_cert=config_payload.get("tls_ca_cert"),
+                tls_client_cert=config_payload.get("tls_client_cert"),
+                tls_client_key=config_payload.get("tls_client_key"),
+                tls_verify=config_payload.get("tls_verify", True),
             )
         elif connection.type == ConnectionType.KUBERNETES:
             kubeconfig_dict = config_payload.get("kubeconfig")
@@ -106,6 +129,10 @@ class ConnectionService:
                 kubeconfig_dict=kubeconfig_dict,
                 context=config_payload.get("context"),
                 in_cluster=config_payload.get("in_cluster", False),
+                api_server_url=config_payload.get("api_server_url") or connection.endpoint,
+                bearer_token=config_payload.get("bearer_token"),
+                ca_cert=config_payload.get("ca_cert"),
+                insecure_skip_tls=config_payload.get("insecure_skip_tls", False),
             )
         raise ValueError(f"Unknown connection type: {connection.type}")
 
