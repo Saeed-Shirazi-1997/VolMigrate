@@ -94,8 +94,16 @@ class ConnectionService:
                 tls_config=config_payload.get("tls"),
             )
         elif connection.type == ConnectionType.KUBERNETES:
+            kubeconfig_dict = config_payload.get("kubeconfig")
+            if not kubeconfig_dict and config_payload.get("kubeconfig_raw"):
+                try:
+                    import yaml
+                    kubeconfig_dict = yaml.safe_load(config_payload["kubeconfig_raw"])
+                except Exception as e:
+                    logger.error("Failed to parse kubeconfig YAML: %s", e)
+
             return KubernetesDestinationAdapter(
-                kubeconfig_dict=config_payload.get("kubeconfig"),
+                kubeconfig_dict=kubeconfig_dict,
                 context=config_payload.get("context"),
                 in_cluster=config_payload.get("in_cluster", False),
             )

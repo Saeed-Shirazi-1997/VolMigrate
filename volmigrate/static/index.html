@@ -302,9 +302,98 @@
           <div id="detail-events-container" class="bg-slate-950 border border-slate-800 rounded-xl p-4 font-mono text-xs text-slate-300 h-64 overflow-y-auto space-y-2">
             <div class="text-slate-500">Connecting to live SSE stream...</div>
           </div>
+    <!-- ADD CONNECTION MODAL -->
+    <div id="modal-add-connection" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 sm:p-8 space-y-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+          <div>
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+              <i data-lucide="network" class="w-5 h-5 text-cyan-400"></i>Add New Connection
+            </h3>
+            <p class="text-xs text-slate-400 mt-1">Configure Docker Engine socket or Kubernetes cluster credentials</p>
+          </div>
+          <button type="button" onclick="closeAddConnectionModal()" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
         </div>
+
+        <!-- Quick Presets -->
+        <div>
+          <label class="block text-xs font-semibold uppercase text-slate-400 mb-2">Quick Presets</label>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <button type="button" onclick="applyPreset('local-docker')" class="px-3.5 py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800/80 border border-slate-800 hover:border-cyan-500/50 text-left transition text-xs flex items-center gap-2.5 group">
+              <span class="w-7 h-7 rounded-lg bg-sky-950 text-sky-400 border border-sky-800 flex items-center justify-center font-bold text-xs shrink-0">D</span>
+              <div class="min-w-0">
+                <div class="font-semibold text-white group-hover:text-cyan-400">Local Docker Engine</div>
+                <div class="text-[10px] text-slate-400 font-mono truncate">unix:///var/run/docker.sock</div>
+              </div>
+            </button>
+            <button type="button" onclick="applyPreset('local-k8s')" class="px-3.5 py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800/80 border border-slate-800 hover:border-cyan-500/50 text-left transition text-xs flex items-center gap-2.5 group">
+              <span class="w-7 h-7 rounded-lg bg-indigo-950 text-indigo-400 border border-indigo-800 flex items-center justify-center font-bold text-xs shrink-0">K8s</span>
+              <div class="min-w-0">
+                <div class="font-semibold text-white group-hover:text-cyan-400">Current K8s Cluster</div>
+                <div class="text-[10px] text-slate-400 font-mono truncate">~/.kube/config / In-Cluster</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Form -->
+        <form id="form-add-connection" onsubmit="handleAddConnectionSubmit(event)" class="space-y-4">
+          <div>
+            <label class="block text-xs font-semibold uppercase text-slate-400 mb-1.5">Connection Name</label>
+            <input type="text" id="conn-name" required placeholder="e.g. Local Docker Engine or Staging K8s" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-cyan-500" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold uppercase text-slate-400 mb-1.5">Connection Type</label>
+            <select id="conn-type" required onchange="onConnTypeChange()" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-cyan-500">
+              <option value="docker">Docker Engine (Source)</option>
+              <option value="kubernetes">Kubernetes Cluster (Destination)</option>
+            </select>
+          </div>
+
+          <!-- Docker Fields -->
+          <div id="fields-docker" class="space-y-4">
+            <div>
+              <label class="block text-xs font-semibold uppercase text-slate-400 mb-1.5">Docker Daemon Endpoint / Socket</label>
+              <input type="text" id="conn-docker-endpoint" value="unix:///var/run/docker.sock" placeholder="unix:///var/run/docker.sock or tcp://host:2375" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white font-mono focus:outline-none focus:border-cyan-500" />
+              <p class="text-[11px] text-slate-500 mt-1">Leave as <code>unix:///var/run/docker.sock</code> for local Docker Engine</p>
+            </div>
+          </div>
+
+          <!-- Kubernetes Fields -->
+          <div id="fields-k8s" class="space-y-4 hidden">
+            <div>
+              <label class="block text-xs font-semibold uppercase text-slate-400 mb-1.5">Cluster Access Method</label>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                <label class="flex items-center gap-2 p-2.5 rounded-lg bg-slate-950 border border-slate-800 cursor-pointer hover:border-cyan-500/50">
+                  <input type="radio" name="k8s-mode" id="k8s-mode-default" value="default" checked onchange="onK8sModeChange()" class="text-cyan-500" />
+                  <span>Default Host / In-Cluster</span>
+                </label>
+                <label class="flex items-center gap-2 p-2.5 rounded-lg bg-slate-950 border border-slate-800 cursor-pointer hover:border-cyan-500/50">
+                  <input type="radio" name="k8s-mode" id="k8s-mode-custom" value="custom" onchange="onK8sModeChange()" class="text-cyan-500" />
+                  <span>Custom Kubeconfig YAML</span>
+                </label>
+              </div>
+            </div>
+
+            <div id="field-k8s-custom-yaml" class="hidden">
+              <label class="block text-xs font-semibold uppercase text-slate-400 mb-1.5">Kubeconfig YAML</label>
+              <textarea id="conn-k8s-yaml" rows="4" placeholder="apiVersion: v1&#10;clusters: ...&#10;users: ..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-xs font-mono text-white focus:outline-none focus:border-cyan-500"></textarea>
+              <p class="text-[11px] text-slate-500 mt-1">Sensitive tokens and certificates are encrypted at rest.</p>
+            </div>
+          </div>
+
+          <div class="pt-4 border-t border-slate-800 flex justify-end gap-3">
+            <button type="button" onclick="closeAddConnectionModal()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm font-medium text-slate-300 transition">Cancel</button>
+            <button type="submit" id="btn-submit-conn" class="px-5 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-medium text-sm shadow-lg shadow-cyan-600/20 transition flex items-center gap-2">
+              <i data-lucide="check" class="w-4 h-4"></i>Save & Test Connection
+            </button>
+          </div>
+        </form>
       </div>
-    </section>
+    </div>
 
   </main>
 
@@ -412,45 +501,215 @@
       }
     }
 
+    // Modal controls & Connection Management
+    function openAddConnectionModal() {
+      const modal = document.getElementById('modal-add-connection');
+      if (modal) {
+        modal.classList.remove('hidden');
+        document.getElementById('form-add-connection').reset();
+        document.getElementById('conn-docker-endpoint').value = 'unix:///var/run/docker.sock';
+        document.getElementById('k8s-mode-default').checked = true;
+        onConnTypeChange();
+        onK8sModeChange();
+        lucide.createIcons();
+      }
+    }
+
+    function closeAddConnectionModal() {
+      const modal = document.getElementById('modal-add-connection');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function applyPreset(preset) {
+      if (preset === 'local-docker') {
+        document.getElementById('conn-name').value = 'Local Docker Engine';
+        document.getElementById('conn-type').value = 'docker';
+        document.getElementById('conn-docker-endpoint').value = 'unix:///var/run/docker.sock';
+        onConnTypeChange();
+      } else if (preset === 'local-k8s') {
+        document.getElementById('conn-name').value = 'Local Kubernetes Cluster';
+        document.getElementById('conn-type').value = 'kubernetes';
+        document.getElementById('k8s-mode-default').checked = true;
+        onConnTypeChange();
+        onK8sModeChange();
+      }
+    }
+
+    function onConnTypeChange() {
+      const type = document.getElementById('conn-type').value;
+      const dockerFields = document.getElementById('fields-docker');
+      const k8sFields = document.getElementById('fields-k8s');
+
+      if (type === 'docker') {
+        dockerFields.classList.remove('hidden');
+        k8sFields.classList.add('hidden');
+      } else {
+        dockerFields.classList.add('hidden');
+        k8sFields.classList.remove('hidden');
+      }
+    }
+
+    function onK8sModeChange() {
+      const isCustom = document.getElementById('k8s-mode-custom').checked;
+      const customField = document.getElementById('field-k8s-custom-yaml');
+      if (isCustom) {
+        customField.classList.remove('hidden');
+      } else {
+        customField.classList.add('hidden');
+      }
+    }
+
+    async function handleAddConnectionSubmit(e) {
+      e.preventDefault();
+      const name = document.getElementById('conn-name').value.trim();
+      const type = document.getElementById('conn-type').value;
+      const btn = document.getElementById('btn-submit-conn');
+      btn.innerText = 'Saving...';
+
+      let endpoint = null;
+      let configPayload = null;
+
+      if (type === 'docker') {
+        endpoint = document.getElementById('conn-docker-endpoint').value.trim() || 'unix:///var/run/docker.sock';
+      } else if (type === 'kubernetes') {
+        const isCustom = document.getElementById('k8s-mode-custom').checked;
+        if (isCustom) {
+          const yaml = document.getElementById('conn-k8s-yaml').value.trim();
+          if (yaml) {
+            configPayload = { kubeconfig_raw: yaml };
+          }
+        }
+      }
+
+      try {
+        const res = await fetch('/api/connections', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: name,
+            type: type,
+            endpoint: endpoint,
+            config_payload: configPayload
+          })
+        });
+
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.detail || 'Failed to create connection');
+        }
+
+        const newConn = await res.json();
+        closeAddConnectionModal();
+        await loadConnections();
+
+        // Immediately test the newly added connection
+        testConnection(newConn.id);
+      } catch (err) {
+        alert('Error creating connection: ' + err.message);
+      } finally {
+        btn.innerText = 'Save & Test Connection';
+      }
+    }
+
+    async function deleteConnection(id) {
+      if (!confirm('Are you sure you want to remove this connection?')) return;
+      try {
+        const res = await fetch(`/api/connections/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          await loadConnections();
+        } else {
+          alert('Failed to delete connection');
+        }
+      } catch (e) {
+        alert('Error deleting connection: ' + e);
+      }
+    }
+
     // Load Connections
     async function loadConnections() {
-      const res = await fetch('/api/connections');
-      connectionsCache = await res.json();
-      const grid = document.getElementById('connections-grid');
+      try {
+        const res = await fetch('/api/connections');
+        connectionsCache = await res.json();
+        const grid = document.getElementById('connections-grid');
 
-      grid.innerHTML = connectionsCache.map(c => `
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
-          <div class="flex items-start justify-between">
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-lg ${c.type === 'docker' ? 'bg-sky-950 text-sky-400 border border-sky-800' : 'bg-indigo-950 text-indigo-400 border border-indigo-800'} flex items-center justify-center font-bold">
-                ${c.type === 'docker' ? 'D' : 'K8s'}
+        if (connectionsCache.length === 0) {
+          grid.innerHTML = `
+            <div class="col-span-2 bg-slate-900 border border-dashed border-slate-800 rounded-2xl p-8 text-center space-y-4">
+              <div class="w-12 h-12 rounded-xl bg-slate-800 text-cyan-400 mx-auto flex items-center justify-center">
+                <i data-lucide="network" class="w-6 h-6"></i>
               </div>
               <div>
-                <h3 class="font-semibold text-white">${c.name}</h3>
-                <p class="text-xs text-slate-400 font-mono">${c.endpoint || '(Default In-Cluster/Host)'}</p>
+                <h3 class="text-base font-semibold text-white">No connections configured yet</h3>
+                <p class="text-xs text-slate-400 mt-1">Add your local Docker engine and Kubernetes cluster to begin migrating volumes.</p>
+              </div>
+              <div class="flex justify-center gap-3 pt-2">
+                <button onclick="applyPreset('local-docker'); openAddConnectionModal();" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-white transition flex items-center gap-2">
+                  <span class="w-5 h-5 rounded bg-sky-950 text-sky-400 flex items-center justify-center font-bold text-[10px]">D</span> Add Local Docker
+                </button>
+                <button onclick="applyPreset('local-k8s'); openAddConnectionModal();" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-white transition flex items-center gap-2">
+                  <span class="w-5 h-5 rounded bg-indigo-950 text-indigo-400 flex items-center justify-center font-bold text-[10px]">K</span> Add Local Kubernetes
+                </button>
               </div>
             </div>
-            <div>
-              <span class="px-2 py-0.5 rounded text-xs font-semibold ${c.status === 'active' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-slate-800 text-slate-400'}">${c.status.toUpperCase()}</span>
+          `;
+          lucide.createIcons();
+          return;
+        }
+
+        grid.innerHTML = connectionsCache.map(c => `
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4 shadow-sm hover:border-slate-700 transition">
+            <div class="flex items-start justify-between">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg ${c.type === 'docker' ? 'bg-sky-950 text-sky-400 border border-sky-800' : 'bg-indigo-950 text-indigo-400 border border-indigo-800'} flex items-center justify-center font-bold">
+                  ${c.type === 'docker' ? 'D' : 'K8s'}
+                </div>
+                <div>
+                  <h3 class="font-semibold text-white">${c.name}</h3>
+                  <p class="text-xs text-slate-400 font-mono">${c.endpoint || (c.type === 'docker' ? 'unix:///var/run/docker.sock' : 'Default In-Cluster / ~/.kube/config')}</p>
+                </div>
+              </div>
+              <div>
+                <span class="px-2 py-0.5 rounded text-xs font-semibold ${c.status === 'active' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : (c.status === 'error' ? 'bg-rose-950 text-rose-400 border border-rose-800' : 'bg-slate-800 text-slate-400')}">${c.status.toUpperCase()}</span>
+              </div>
+            </div>
+
+            ${c.last_error ? `
+              <div class="text-[11px] bg-rose-950/40 border border-rose-900/50 text-rose-300 rounded-lg p-2.5 font-mono break-all">
+                Error: ${c.last_error}
+              </div>
+            ` : ''}
+
+            <div class="flex justify-between items-center text-xs text-slate-400 border-t border-slate-800/80 pt-3">
+              <span>Last tested: ${c.last_tested_at ? new Date(c.last_tested_at).toLocaleTimeString() : 'Never'}</span>
+              <div class="flex items-center gap-2">
+                <button onclick="testConnection('${c.id}')" id="btn-test-${c.id}" class="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium transition flex items-center gap-1.5">
+                  <i data-lucide="zap" class="w-3.5 h-3.5 text-cyan-400"></i>Test
+                </button>
+                <button onclick="deleteConnection('${c.id}')" class="px-2.5 py-1 rounded bg-slate-950 hover:bg-rose-950/50 hover:text-rose-400 text-slate-500 font-medium transition">
+                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                </button>
+              </div>
             </div>
           </div>
-          <div class="flex justify-between items-center text-xs text-slate-400 border-t border-slate-800/80 pt-3">
-            <span>Last tested: ${c.last_tested_at ? new Date(c.last_tested_at).toLocaleTimeString() : 'Never'}</span>
-            <button onclick="testConnection('${c.id}')" id="btn-test-${c.id}" class="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium">Test Connection</button>
-          </div>
-        </div>
-      `).join('');
-      lucide.createIcons();
+        `).join('');
+        lucide.createIcons();
+      } catch (e) {
+        console.error(e);
+      }
     }
 
     async function testConnection(id) {
       const btn = document.getElementById(`btn-test-${id}`);
-      if (btn) btn.innerText = 'Testing...';
+      if (btn) btn.innerHTML = '<span class="animate-spin">⏳</span> Testing...';
       try {
         const res = await fetch(`/api/connections/${id}/test`, { method: 'POST' });
         const data = await res.json();
-        alert(data.success ? `Connection Successful! Version: ${data.version_info}` : `Failed: ${data.error}`);
-        loadConnections();
+        if (data.success) {
+          alert(`✓ Connection verified successfully!\n\nVersion: ${data.version_info}`);
+        } else {
+          alert(`✗ Connection test failed:\n\n${data.error}`);
+        }
+        await loadConnections();
       } catch (e) {
         alert('Test failed: ' + e);
       }
