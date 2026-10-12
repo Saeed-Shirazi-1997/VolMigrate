@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Volmigrate — Docker Volume to K8s PVC Migration</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    @keyframes pulse-fast {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .animate-pulse-fast {
+      animation: pulse-fast 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans">
+  <!-- Top Header -->
+  <header class="border-b border-slate-800 bg-slate-900/60 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+          <i data-lucide="layers" class="w-6 h-6 text-white"></i>
+        </div>
+        <div>
+          <span class="text-xl font-bold tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">Volmigrate</span>
+          <span class="ml-2 text-xs px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-400 border border-cyan-800 font-mono">v1.0 MVP</span>
+        </div>
+      </div>
+
+      <!-- Navigation tabs -->
+      <nav class="flex items-center space-x-1 sm:space-x-2">
+        <button onclick="switchTab('dashboard')" id="tab-dashboard" class="nav-btn px-3 py-2 rounded-lg text-sm font-medium transition text-cyan-400 bg-slate-800">
+          <i data-lucide="layout-dashboard" class="w-4 h-4 inline mr-1.5"></i>Dashboard
+        </button>
+        <button onclick="switchTab('connections')" id="tab-connections" class="nav-btn px-3 py-2 rounded-lg text-sm font-medium transition text-slate-400 hover:text-slate-200 hover:bg-slate-800/60">
+          <i data-lucide="network" class="w-4 h-4 inline mr-1.5"></i>Connections
+        </button>
+        <button onclick="switchTab('explorer')" id="tab-explorer" class="nav-btn px-3 py-2 rounded-lg text-sm font-medium transition text-slate-400 hover:text-slate-200 hover:bg-slate-800/60">
+          <i data-lucide="hard-drive" class="w-4 h-4 inline mr-1.5"></i>Volume Explorer
+        </button>
+        <button onclick="switchTab('wizard')" id="tab-wizard" class="nav-btn px-3 py-2 rounded-lg text-sm font-medium transition text-slate-400 hover:text-slate-200 hover:bg-slate-800/60">
+          <i data-lucide="sparkles" class="w-4 h-4 inline mr-1.5 text-cyan-400"></i>New Migration
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    
+    <!-- DASHBOARD VIEW -->
+    <section id="view-dashboard" class="space-y-6">
+      <!-- Top Metrics Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-5 shadow-sm">
+          <div class="flex items-center justify-between text-slate-400 mb-2">
+            <span class="text-xs uppercase font-semibold tracking-wider">Total Migrations</span>
+            <i data-lucide="database" class="w-4 h-4 text-slate-500"></i>
+          </div>
+          <div id="stat-total" class="text-3xl font-bold text-white">0</div>
+        </div>
+
+        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-5 shadow-sm">
+          <div class="flex items-center justify-between text-slate-400 mb-2">
+            <span class="text-xs uppercase font-semibold tracking-wider">Active Transfers</span>
+            <i data-lucide="activity" class="w-4 h-4 text-cyan-400"></i>
+          </div>
+          <div id="stat-active" class="text-3xl font-bold text-cyan-400">0</div>
+        </div>
+
+        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-5 shadow-sm">
+          <div class="flex items-center justify-between text-slate-400 mb-2">
+            <span class="text-xs uppercase font-semibold tracking-wider">Completed</span>
+            <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400"></i>
+          </div>
+          <div id="stat-completed" class="text-3xl font-bold text-emerald-400">0</div>
+        </div>
+
+        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-5 shadow-sm">
+          <div class="flex items-center justify-between text-slate-400 mb-2">
+            <span class="text-xs uppercase font-semibold tracking-wider">Transferred Data</span>
+            <i data-lucide="arrow-up-right" class="w-4 h-4 text-blue-400"></i>
+          </div>
+          <div id="stat-bytes" class="text-3xl font-bold text-blue-400">0 MB</div>
+        </div>
+      </div>
+
+      <!-- Migrations Table -->
+      <div class="bg-slate-900/80 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
+        <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+          <h2 class="text-lg font-semibold text-white flex items-center gap-2">
+            <i data-lucide="list-ordered" class="w-5 h-5 text-cyan-400"></i>Migration Jobs
+          </h2>
+          <button onclick="loadMigrations()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-300 transition flex items-center gap-1.5">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>Refresh
+          </button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm text-slate-300">
+            <thead class="bg-slate-950/60 text-slate-400 text-xs uppercase font-semibold border-b border-slate-800">
+              <tr>
+                <th class="px-6 py-3.5">Migration Name</th>
+                <th class="px-6 py-3.5">Source Volume</th>
+                <th class="px-6 py-3.5">Dest PVC</th>
+                <th class="px-6 py-3.5">Status</th>
+                <th class="px-6 py-3.5">Progress</th>
+                <th class="px-6 py-3.5">Speed</th>
+                <th class="px-6 py-3.5 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="migrations-tbody" class="divide-y divide-slate-800/60">
+              <tr>
+                <td colspan="7" class="px-6 py-8 text-center text-slate-500">Loading migrations...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONNECTIONS VIEW -->
+    <section id="view-connections" class="space-y-6 hidden">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-xl font-bold text-white">Configured Connections</h2>
+          <p class="text-sm text-slate-400">Manage Docker Engines and Kubernetes Clusters</p>
+        </div>
+        <button onclick="openAddConnectionModal()" class="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-medium shadow-lg shadow-cyan-600/20 transition flex items-center gap-2">
+          <i data-lucide="plus" class="w-4 h-4"></i>Add Connection
+        </button>
+      </div>
+
+      <div id="connections-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Rendered dynamically -->
+      </div>
+    </section>
+
+    <!-- VOLUME EXPLORER VIEW -->
+    <section id="view-explorer" class="space-y-6 hidden">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 class="text-xl font-bold text-white">Docker Volume Explorer</h2>
+          <p class="text-sm text-slate-400">Inspect Docker volumes, consumers, and data size</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <select id="explorer-connection-select" onchange="loadExplorerVolumes()" class="bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-cyan-500">
+            <!-- Populated dynamically -->
+          </select>
+          <button onclick="loadExplorerVolumes()" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm font-medium text-slate-300 transition flex items-center gap-1.5">
+            <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+
+      <div id="volumes-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Populated dynamically -->
+      </div>
+    </section>
+
+    <!-- MIGRATION WIZARD VIEW -->
+    <section id="view-wizard" class="space-y-6 hidden">
+      <div class="max-w-3xl mx-auto bg-slate-900/90 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-xl">
+        <div class="mb-6 border-b border-slate-800 pb-4">
+          <h2 class="text-xl font-bold text-white flex items-center gap-2">
+            <i data-lucide="sparkles" class="w-5 h-5 text-cyan-400"></i>Create New Migration Plan
+          </h2>
+          <p class="text-sm text-slate-400 mt-1">Configure source Docker volume, target Kubernetes PVC, run preflight, and start streaming transfer.</p>
+        </div>
+
+        <form id="wizard-form" onsubmit="handleWizardSubmit(event)" class="space-y-6">
+          <!-- Step 1: Connections -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-semibold uppercase text-slate-400 mb-1.5">Source Connection (Docker)</label>
+              <select id="wz-source-conn" required onchange="onWizardSourceConnChange()" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-cyan-500">
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold uppercase text-slate-400 mb-1.5">Destination Connection (K8s)</label>
+              <select id="wz-dest-conn" required onchange="onWizardDestConnChange()" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-cyan-500">
+              </select>
+            </div>
+          </div>
+
+          <!-- Step 2: Volume & PVC -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-semibold uppercase text-slate-400 mb-1.5">Source Docker Volume</label>
+              <select id="wz-source-vol" required onchange="onWizardVolSelect()" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-cyan-500">
+                <option value="">Select Docker volume...</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold uppercase text-slate-400 mb-1.5">Target PVC Name</label>
+              <input id="wz-dest-pvc" type="text" required placeholder="e.g. data-pvc" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-cyan-500" />
+            </div>
+          </div>
+
+          <!-- Step 3: Kubernetes Placement -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-semibold uppercase text-slate-400 mb-1.5">Target Namespace</label>
+              <select id="wz-dest-ns" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-cyan-500">
+                <option value="default">default</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold uppercase text-slate-400 mb-1.5">StorageClass</label>
+              <select id="wz-dest-sc" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-cyan-500">
+                <option value="">(Default Cluster StorageClass)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Preflight Check Button & Output -->
+          <div class="pt-2">
+            <button type="button" onclick="runPreflightWizard()" id="btn-preflight" class="w-full py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sm font-medium text-cyan-400 transition flex items-center justify-center gap-2">
+              <i data-lucide="shield-check" class="w-4 h-4"></i>Run Preflight Check & Validation Plan
+            </button>
+            <div id="preflight-results" class="mt-4 hidden p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2 text-sm">
+            </div>
+          </div>
+
+          <!-- Policies -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+            <div>
+              <label class="block text-xs font-semibold uppercase text-slate-400 mb-1.5">Validation Policy</label>
+              <select id="wz-policy-val" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-cyan-500">
+                <option value="fast_manifest">Fast Manifest & File Count</option>
+                <option value="full_sha256">Full SHA-256 Stream Checksum</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold uppercase text-slate-400 mb-1.5">Existing PVC Policy</label>
+              <select id="wz-policy-overwrite" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-cyan-500">
+                <option value="fail_if_exists">Fail if PVC exists and not empty</option>
+                <option value="overwrite">Overwrite existing files</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="pt-4 border-t border-slate-800 flex justify-end gap-3">
+            <button type="button" onclick="switchTab('dashboard')" class="px-5 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm font-medium text-slate-300">Cancel</button>
+            <button type="submit" id="btn-start-migration" class="px-6 py-2.5 rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-medium text-sm shadow-lg shadow-cyan-600/20 transition flex items-center gap-2">
+              <i data-lucide="play" class="w-4 h-4"></i>Queue & Start Migration
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- MIGRATION DETAIL / LIVE STREAM VIEW -->
+    <section id="view-detail" class="space-y-6 hidden">
+      <div class="flex items-center justify-between">
+        <button onclick="switchTab('dashboard')" class="text-sm font-medium text-slate-400 hover:text-white flex items-center gap-1.5">
+          <i data-lucide="arrow-left" class="w-4 h-4"></i>Back to Dashboard
+        </button>
+        <div id="detail-actions" class="flex gap-2">
+        </div>
+      </div>
+
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 sm:p-8 space-y-6 shadow-xl">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
+          <div>
+            <h2 id="detail-title" class="text-2xl font-bold text-white">Migration Details</h2>
+            <div id="detail-subtitle" class="text-sm text-slate-400 mt-1">Docker Volume -> Kubernetes PVC</div>
+          </div>
+          <div id="detail-status-badge">
+            <span class="px-3 py-1 rounded-full text-xs font-semibold bg-slate-800 text-slate-300">QUEUED</span>
+          </div>
+        </div>
+
+        <!-- Live Progress Card -->
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-5 space-y-3">
+          <div class="flex justify-between items-center text-sm font-medium">
+            <span id="detail-step-text" class="text-slate-300 flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse-fast"></span>
+              Initializing...
+            </span>
+            <span id="detail-speed-text" class="text-cyan-400 font-mono">0 KB/s</span>
+          </div>
+
+          <!-- Progress bar -->
+          <div class="w-full bg-slate-800 rounded-full h-3 overflow-hidden">
+            <div id="detail-progress-bar" class="bg-gradient-to-r from-cyan-500 to-blue-500 h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
+          </div>
+
+          <div class="flex justify-between text-xs text-slate-400 font-mono">
+            <span id="detail-bytes-text">0 MB transferred</span>
+            <span id="detail-checksum-text"></span>
+          </div>
+        </div>
+
+        <!-- Event Logs Timeline -->
+        <div>
+          <h3 class="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
+            <i data-lucide="terminal" class="w-4 h-4 text-cyan-400"></i>Live Event Logs & Audit Stream
+          </h3>
+          <div id="detail-events-container" class="bg-slate-950 border border-slate-800 rounded-xl p-4 font-mono text-xs text-slate-300 h-64 overflow-y-auto space-y-2">
+            <div class="text-slate-500">Connecting to live SSE stream...</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    // State
+    let activeTab = 'dashboard';
+    let currentDetailId = null;
+    let sseSource = null;
+    let connectionsCache = [];
+
+    function switchTab(tab) {
+      activeTab = tab;
+      document.querySelectorAll('main > section').forEach(sec => sec.classList.add('hidden'));
+      document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.classList.remove('text-cyan-400', 'bg-slate-800');
+        btn.classList.add('text-slate-400');
+      });
+
+      const targetSec = document.getElementById(`view-${tab}`);
+      if (targetSec) targetSec.classList.remove('hidden');
+
+      const targetBtn = document.getElementById(`tab-${tab}`);
+      if (targetBtn) {
+        targetBtn.classList.remove('text-slate-400');
+        targetBtn.classList.add('text-cyan-400', 'bg-slate-800');
+      }
+
+      if (tab === 'dashboard') loadMigrations();
+      if (tab === 'connections') loadConnections();
+      if (tab === 'explorer') loadExplorer();
+      if (tab === 'wizard') loadWizard();
+
+      lucide.createIcons();
+    }
+
+    function formatBytes(bytes) {
+      if (!bytes || bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    function formatSpeed(bps) {
+      if (!bps || bps === 0) return '0 B/s';
+      return formatBytes(bps) + '/s';
+    }
+
+    function getStatusBadge(status) {
+      const map = {
+        queued: 'bg-amber-950 text-amber-400 border-amber-800',
+        preparing: 'bg-blue-950 text-blue-400 border-blue-800',
+        transferring: 'bg-cyan-950 text-cyan-400 border-cyan-800 animate-pulse',
+        validating: 'bg-purple-950 text-purple-400 border-purple-800',
+        completed: 'bg-emerald-950 text-emerald-400 border-emerald-800',
+        failed: 'bg-rose-950 text-rose-400 border-rose-800',
+        cancelled: 'bg-slate-800 text-slate-400 border-slate-700',
+      };
+      const cls = map[status.toLowerCase()] || 'bg-slate-800 text-slate-300';
+      return `<span class="px-2.5 py-1 rounded-full text-xs font-semibold border ${cls}">${status.toUpperCase()}</span>`;
+    }
+
+    // Load Migrations
+    async function loadMigrations() {
+      try {
+        const res = await fetch('/api/migrations');
+        const list = await res.json();
+        
+        let total = list.length;
+        let active = 0;
+        let completed = 0;
+        let totalBytes = 0;
+
+        const tbody = document.getElementById('migrations-tbody');
+        if (list.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="7" class="px-6 py-8 text-center text-slate-500">No migrations yet. Click "New Migration" to begin.</td></tr>`;
+        } else {
+          tbody.innerHTML = list.map(m => {
+            if (['preparing', 'transferring', 'validating'].includes(m.status.toLowerCase())) active++;
+            if (m.status.toLowerCase() === 'completed') completed++;
+            totalBytes += (m.transferred_bytes || 0);
+
+            return `
+              <tr class="hover:bg-slate-800/40 transition cursor-pointer" onclick="viewMigrationDetail('${m.id}')">
+                <td class="px-6 py-4 font-medium text-white">${m.name}</td>
+                <td class="px-6 py-4 font-mono text-cyan-400">${m.source_volume_name}</td>
+                <td class="px-6 py-4 font-mono text-slate-300">${m.dest_namespace}/${m.dest_pvc_name}</td>
+                <td class="px-6 py-4">${getStatusBadge(m.status)}</td>
+                <td class="px-6 py-4 font-mono">${formatBytes(m.transferred_bytes)}</td>
+                <td class="px-6 py-4 font-mono text-slate-400">${formatSpeed(m.throughput_bytes_per_sec)}</td>
+                <td class="px-6 py-4 text-right">
+                  <button onclick="event.stopPropagation(); viewMigrationDetail('${m.id}')" class="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-slate-300">View</button>
+                </td>
+              </tr>
+            `;
+          }).join('');
+        }
+
+        document.getElementById('stat-total').innerText = total;
+        document.getElementById('stat-active').innerText = active;
+        document.getElementById('stat-completed').innerText = completed;
+        document.getElementById('stat-bytes').innerText = formatBytes(totalBytes);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    // Load Connections
+    async function loadConnections() {
+      const res = await fetch('/api/connections');
+      connectionsCache = await res.json();
+      const grid = document.getElementById('connections-grid');
+
+      grid.innerHTML = connectionsCache.map(c => `
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+          <div class="flex items-start justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-lg ${c.type === 'docker' ? 'bg-sky-950 text-sky-400 border border-sky-800' : 'bg-indigo-950 text-indigo-400 border border-indigo-800'} flex items-center justify-center font-bold">
+                ${c.type === 'docker' ? 'D' : 'K8s'}
+              </div>
+              <div>
+                <h3 class="font-semibold text-white">${c.name}</h3>
+                <p class="text-xs text-slate-400 font-mono">${c.endpoint || '(Default In-Cluster/Host)'}</p>
+              </div>
+            </div>
+            <div>
+              <span class="px-2 py-0.5 rounded text-xs font-semibold ${c.status === 'active' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-slate-800 text-slate-400'}">${c.status.toUpperCase()}</span>
+            </div>
+          </div>
+          <div class="flex justify-between items-center text-xs text-slate-400 border-t border-slate-800/80 pt-3">
+            <span>Last tested: ${c.last_tested_at ? new Date(c.last_tested_at).toLocaleTimeString() : 'Never'}</span>
+            <button onclick="testConnection('${c.id}')" id="btn-test-${c.id}" class="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium">Test Connection</button>
+          </div>
+        </div>
+      `).join('');
+      lucide.createIcons();
+    }
+
+    async function testConnection(id) {
+      const btn = document.getElementById(`btn-test-${id}`);
+      if (btn) btn.innerText = 'Testing...';
+      try {
+        const res = await fetch(`/api/connections/${id}/test`, { method: 'POST' });
+        const data = await res.json();
+        alert(data.success ? `Connection Successful! Version: ${data.version_info}` : `Failed: ${data.error}`);
+        loadConnections();
+      } catch (e) {
+        alert('Test failed: ' + e);
+      }
+    }
+
+    // Load Explorer
+    async function loadExplorer() {
+      const res = await fetch('/api/connections');
+      const conns = await res.json();
+      const dockerConns = conns.filter(c => c.type === 'docker');
+      const sel = document.getElementById('explorer-connection-select');
+      sel.innerHTML = dockerConns.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+      if (dockerConns.length > 0) loadExplorerVolumes();
+    }
+
+    async function loadExplorerVolumes() {
+      const connId = document.getElementById('explorer-connection-select').value;
+      if (!connId) return;
+      const grid = document.getElementById('volumes-grid');
+      grid.innerHTML = '<div class="text-slate-500 col-span-3">Loading volumes...</div>';
+
+      try {
+        const res = await fetch(`/api/discovery/sources/${connId}/volumes`);
+        const vols = await res.json();
+        if (vols.length === 0) {
+          grid.innerHTML = '<div class="text-slate-500 col-span-3">No volumes found.</div>';
+          return;
+        }
+
+        grid.innerHTML = vols.map(v => `
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+            <div class="flex items-start justify-between">
+              <h3 class="font-semibold text-white font-mono text-sm break-all">${v.name}</h3>
+              <span class="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">${v.driver}</span>
+            </div>
+            <div class="text-xs text-slate-400 space-y-1">
+              <div>Consumers: <span class="font-semibold ${v.active_consumers_count > 0 ? 'text-amber-400' : 'text-slate-300'}">${v.active_consumers_count} container(s)</span></div>
+              <div class="break-all truncate">Mountpoint: <span class="font-mono text-slate-500">${v.mountpoint || 'N/A'}</span></div>
+            </div>
+            <div class="pt-2 border-t border-slate-800/80 flex justify-end">
+              <button onclick="startWizardForVolume('${v.name}')" class="px-3 py-1.5 rounded bg-cyan-900/50 hover:bg-cyan-900 border border-cyan-800 text-cyan-300 text-xs font-medium">Migrate this volume</button>
+            </div>
+          </div>
+        `).join('');
+      } catch (e) {
+        grid.innerHTML = `<div class="text-rose-400 col-span-3">Failed to load volumes: ${e}</div>`;
+      }
+    }
+
+    function startWizardForVolume(volName) {
+      switchTab('wizard');
+      setTimeout(() => {
+        document.getElementById('wz-source-vol').value = volName;
+        document.getElementById('wz-dest-pvc').value = `${volName}-pvc`;
+      }, 300);
+    }
+
+    // Wizard
+    async function loadWizard() {
+      const res = await fetch('/api/connections');
+      const conns = await res.json();
+      const dockerConns = conns.filter(c => c.type === 'docker');
+      const k8sConns = conns.filter(c => c.type === 'kubernetes');
+
+      const srcSel = document.getElementById('wz-source-conn');
+      srcSel.innerHTML = dockerConns.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+
+      const dstSel = document.getElementById('wz-dest-conn');
+      dstSel.innerHTML = k8sConns.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+
+      if (dockerConns.length > 0) onWizardSourceConnChange();
+      if (k8sConns.length > 0) onWizardDestConnChange();
+    }
+
+    async function onWizardSourceConnChange() {
+      const connId = document.getElementById('wz-source-conn').value;
+      if (!connId) return;
+      const res = await fetch(`/api/discovery/sources/${connId}/volumes`);
+      const vols = await res.json();
+      const sel = document.getElementById('wz-source-vol');
+      sel.innerHTML = '<option value="">Select volume...</option>' + vols.map(v => `<option value="${v.name}">${v.name} (${v.active_consumers_count} consumers)</option>`).join('');
+    }
+
+    async function onWizardDestConnChange() {
+      const connId = document.getElementById('wz-dest-conn').value;
+      if (!connId) return;
+
+      const nsRes = await fetch(`/api/discovery/destinations/${connId}/namespaces`);
+      const nss = await nsRes.json();
+      const nsSel = document.getElementById('wz-dest-ns');
+      nsSel.innerHTML = nss.map(n => `<option value="${n.name}">${n.name}</option>`).join('');
+
+      const scRes = await fetch(`/api/discovery/destinations/${connId}/storage-classes`);
+      const scs = await scRes.json();
+      const scSel = document.getElementById('wz-dest-sc');
+      scSel.innerHTML = '<option value="">(Default StorageClass)</option>' + scs.map(s => `<option value="${s.name}">${s.name} (${s.provisioner})</option>`).join('');
+    }
+
+    function onWizardVolSelect() {
+      const vol = document.getElementById('wz-source-vol').value;
+      if (vol && !document.getElementById('wz-dest-pvc').value) {
+        document.getElementById('wz-dest-pvc').value = `${vol}-pvc`;
+      }
+    }
+
+    async function runPreflightWizard() {
+      const planReq = {
+        source_connection_id: document.getElementById('wz-source-conn').value,
+        dest_connection_id: document.getElementById('wz-dest-conn').value,
+        source_volume_name: document.getElementById('wz-source-vol').value,
+        dest_namespace: document.getElementById('wz-dest-ns').value,
+        dest_pvc_name: document.getElementById('wz-dest-pvc').value,
+        storage_class_name: document.getElementById('wz-dest-sc').value || null,
+        create_pvc_if_missing: true
+      };
+
+      const btn = document.getElementById('btn-preflight');
+      btn.innerText = 'Evaluating Preflight Checks...';
+
+      try {
+        const res = await fetch('/api/migrations/plan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(planReq)
+        });
+        const plan = await res.json();
+        const resultsDiv = document.getElementById('preflight-results');
+        resultsDiv.classList.remove('hidden');
+
+        resultsDiv.innerHTML = `
+          <div class="font-semibold ${plan.plan_valid ? 'text-emerald-400' : 'text-rose-400'}">
+            ${plan.plan_valid ? '✓ Preflight Passed: Safe to Proceed' : '✗ Preflight Warnings / Errors'}
+          </div>
+          <div class="space-y-1">
+            ${plan.preflight.checks.map(c => `
+              <div class="flex items-start gap-2">
+                <span class="${c.passed ? 'text-emerald-400' : (c.severity === 'warning' ? 'text-amber-400' : 'text-rose-400')} font-bold">${c.passed ? '✓' : '⚠'}</span>
+                <span class="text-slate-300"><strong class="text-slate-200">[${c.name}]</strong>: ${c.message}</span>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      } catch (e) {
+        alert('Preflight failed: ' + e);
+      } finally {
+        btn.innerText = 'Run Preflight Check & Validation Plan';
+      }
+    }
+
+    async function handleWizardSubmit(e) {
+      e.preventDefault();
+      const body = {
+        source_connection_id: document.getElementById('wz-source-conn').value,
+        dest_connection_id: document.getElementById('wz-dest-conn').value,
+        source_volume_name: document.getElementById('wz-source-vol').value,
+        dest_namespace: document.getElementById('wz-dest-ns').value,
+        dest_pvc_name: document.getElementById('wz-dest-pvc').value,
+        storage_class_name: document.getElementById('wz-dest-sc').value || null,
+        validation_policy: document.getElementById('wz-policy-val').value,
+        overwrite_policy: document.getElementById('wz-policy-overwrite').value,
+        create_pvc_if_missing: true
+      };
+
+      try {
+        const res = await fetch('/api/migrations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        const created = await res.json();
+        viewMigrationDetail(created.id);
+      } catch (err) {
+        alert('Creation failed: ' + err);
+      }
+    }
+
+    // Detail & Live SSE
+    async function viewMigrationDetail(id) {
+      currentDetailId = id;
+      switchTab('detail');
+
+      if (sseSource) sseSource.close();
+
+      const res = await fetch(`/api/migrations/${id}`);
+      const mig = await res.json();
+
+      document.getElementById('detail-title').innerText = mig.name;
+      document.getElementById('detail-subtitle').innerText = `${mig.source_volume_name} ➔ ${mig.dest_namespace}/${mig.dest_pvc_name}`;
+      document.getElementById('detail-status-badge').innerHTML = getStatusBadge(mig.status);
+      document.getElementById('detail-step-text').innerText = mig.current_step;
+      document.getElementById('detail-bytes-text').innerText = formatBytes(mig.transferred_bytes) + ' transferred';
+      document.getElementById('detail-speed-text').innerText = formatSpeed(mig.throughput_bytes_per_sec);
+
+      // Render past events
+      const eventsContainer = document.getElementById('detail-events-container');
+      eventsContainer.innerHTML = mig.events.map(ev => `
+        <div class="flex items-start gap-2">
+          <span class="text-slate-500">${new Date(ev.created_at).toLocaleTimeString()}</span>
+          <span class="${ev.level === 'error' ? 'text-rose-400' : (ev.level === 'warning' ? 'text-amber-400' : 'text-cyan-400')}">[${ev.step}]</span>
+          <span>${ev.message}</span>
+        </div>
+      `).join('');
+
+      // Setup actions
+      const actionsDiv = document.getElementById('detail-actions');
+      actionsDiv.innerHTML = `
+        <button onclick="cancelMigration('${mig.id}')" class="px-3 py-1.5 rounded-lg bg-rose-950/60 border border-rose-800 text-rose-300 text-xs font-medium hover:bg-rose-900">Cancel</button>
+        <button onclick="retryMigration('${mig.id}')" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium">Retry</button>
+      `;
+
+      // Connect SSE
+      sseSource = new EventSource(`/api/migrations/${id}/events`);
+      sseSource.addEventListener('progress', e => {
+        const data = JSON.parse(e.data);
+        document.getElementById('detail-bytes-text').innerText = formatBytes(data.transferred_bytes) + ' transferred';
+        document.getElementById('detail-speed-text').innerText = formatSpeed(data.throughput_bytes_per_sec);
+        if (data.percent) {
+          document.getElementById('detail-progress-bar').style.width = `${data.percent}%`;
+        }
+      });
+
+      sseSource.addEventListener('log', e => {
+        const data = JSON.parse(e.data);
+        const div = document.createElement('div');
+        div.className = 'flex items-start gap-2';
+        div.innerHTML = `
+          <span class="text-slate-500">${new Date().toLocaleTimeString()}</span>
+          <span class="text-cyan-400">[${data.step}]</span>
+          <span>${data.message}</span>
+        `;
+        eventsContainer.appendChild(div);
+        eventsContainer.scrollTop = eventsContainer.scrollHeight;
+      });
+
+      sseSource.addEventListener('completed', e => {
+        document.getElementById('detail-status-badge').innerHTML = getStatusBadge('completed');
+        document.getElementById('detail-step-text').innerText = 'Completed successfully';
+        document.getElementById('detail-progress-bar').style.width = '100%';
+      });
+
+      sseSource.addEventListener('failed', e => {
+        const data = JSON.parse(e.data);
+        document.getElementById('detail-status-badge').innerHTML = getStatusBadge('failed');
+        document.getElementById('detail-step-text').innerText = 'Failed: ' + data.message;
+      });
+    }
+
+    async function cancelMigration(id) {
+      if (confirm('Cancel this migration?')) {
+        await fetch(`/api/migrations/${id}/cancel`, { method: 'POST' });
+        viewMigrationDetail(id);
+      }
+    }
+
+    async function retryMigration(id) {
+      await fetch(`/api/migrations/${id}/retry`, { method: 'POST' });
+      viewMigrationDetail(id);
+    }
+
+    // Initialize on load
+    document.addEventListener('DOMContentLoaded', () => {
+      loadMigrations();
+      lucide.createIcons();
+    });
+  </script>
+</body>
+</html>

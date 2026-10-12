@@ -1,0 +1,58 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: volmigrate-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: volmigrate
+      POSTGRES_USER: volmigrate
+      POSTGRES_PASSWORD: volmigrate_secret_password
+    volumes:
+      - volmigrate_pgdata:/var/lib/postgresql/data
+    ports:
+      - "5435:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U volmigrate -d volmigrate"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: volmigrate-api
+    restart: unless-stopped
+    command: ["uv", "run", "uvicorn", "volmigrate.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://volmigrate:volmigrate_secret_password@postgres:5432/volmigrate"
+      SECRET_KEY: "volmigrate-production-encryption-key-change-me!"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ~/.kube/config:/root/.kube/config:ro
+    ports:
+      - "8008:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: volmigrate-worker
+    restart: unless-stopped
+    command: ["uv", "run", "python", "-m", "volmigrate.worker.main"]
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://volmigrate:volmigrate_secret_password@postgres:5432/volmigrate"
+      SECRET_KEY: "volmigrate-production-encryption-key-change-me!"
+      WORKER_ID: "worker-docker-compose-1"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ~/.kube/config:/root/.kube/config:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  volmigrate_pgdata:
