@@ -19,6 +19,12 @@ class TestAPI(unittest.TestCase):
                 r_ui = await client.get("/")
                 self.assertEqual(r_ui.status_code, 200)
                 self.assertIn("Volmigrate", r_ui.text)
+                self.assertIn('id="modal-add-connection"', r_ui.text)
+                self.assertIn('openAddConnectionModal()', r_ui.text)
+                # Verify modal is placed outside and after </main>
+                main_close_pos = r_ui.text.find("</main>")
+                modal_pos = r_ui.text.find('id="modal-add-connection"')
+                self.assertGreater(modal_pos, main_close_pos)
 
                 # Create connection
                 r_conn = await client.post("/api/connections", json={

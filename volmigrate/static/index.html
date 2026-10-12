@@ -14,6 +14,10 @@
     .animate-pulse-fast {
       animation: pulse-fast 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
     }
+    .hidden { display: none !important; }
+    #modal-add-connection {
+      z-index: 9999 !important;
+    }
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans">
@@ -43,6 +47,9 @@
         </button>
         <button onclick="switchTab('wizard')" id="tab-wizard" class="nav-btn px-3 py-2 rounded-lg text-sm font-medium transition text-slate-400 hover:text-slate-200 hover:bg-slate-800/60">
           <i data-lucide="sparkles" class="w-4 h-4 inline mr-1.5 text-cyan-400"></i>New Migration
+        </button>
+        <button onclick="openAddConnectionModal()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-cyan-600 hover:bg-cyan-500 text-white shadow-sm transition flex items-center gap-1.5 ml-2 cursor-pointer">
+          <span class="text-sm font-bold">+</span> Add Connection
         </button>
       </nav>
     </div>
@@ -302,8 +309,13 @@
           <div id="detail-events-container" class="bg-slate-950 border border-slate-800 rounded-xl p-4 font-mono text-xs text-slate-300 h-64 overflow-y-auto space-y-2">
             <div class="text-slate-500">Connecting to live SSE stream...</div>
           </div>
-    <!-- ADD CONNECTION MODAL (REMOTE & LOCAL) -->
-    <div id="modal-add-connection" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ADD CONNECTION MODAL (REMOTE & LOCAL) -->
+  <div id="modal-add-connection" style="display: none;" onclick="if(event.target===this)closeAddConnectionModal()" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl p-6 sm:p-8 space-y-6 shadow-2xl relative max-h-[92vh] overflow-y-auto">
         <div class="flex items-center justify-between border-b border-slate-800 pb-4">
           <div>
@@ -508,8 +520,6 @@
       </div>
     </div>
 
-  </main>
-
   <script>
     // State
     let activeTab = 'dashboard';
@@ -642,6 +652,7 @@
     function openAddConnectionModal() {
       const modal = document.getElementById('modal-add-connection');
       if (modal) {
+        modal.style.display = 'flex';
         modal.classList.remove('hidden');
         document.getElementById('form-add-connection').reset();
         document.getElementById('docker-protocol').value = 'ssh';
@@ -655,8 +666,15 @@
 
     function closeAddConnectionModal() {
       const modal = document.getElementById('modal-add-connection');
-      if (modal) modal.classList.add('hidden');
+      if (modal) {
+        modal.style.display = 'none';
+        modal.classList.add('hidden');
+      }
     }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeAddConnectionModal();
+    });
 
     function applyRemotePreset(preset) {
       if (preset === 'remote-docker-ssh') {
